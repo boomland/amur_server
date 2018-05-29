@@ -3,7 +3,7 @@
 
 const std::string Q_FIND_USER = "SELECT * FROM users WHERE tinder_id = ?";
 
-const std::string Q_UPDATE_USER = 
+const std::string Q_UPDATE_USER =
 	"UPDATE users"
 	"	SET name = ?,"
 	"	gender = ?,"
@@ -15,7 +15,7 @@ const std::string Q_UPDATE_USER =
 	"	tinder_auth_token = ?"
 	" WHERE tinder_id = ? ";
 
-const std::string Q_INSERT_USER = 
+const std::string Q_INSERT_USER =
 "INSERT INTO users"
 "(tinder_id, facebook_id, name, gender, gender_filter, birthday, distance_filter, age_min, age_max, tinder_auth_token)"
 " VALUES(? , ? , ? , ? , ? , ? , ? , ? , ? , ? )";
@@ -106,6 +106,14 @@ const std::string Q_FILTER_v3 =
 "ORDER BY RAND() "
 "LIMIT ? ";
 
+const std::string Q_FILTER_v4 =
+"SELECT ec.*, sum(vote) as rating "
+"FROM marks m "
+"JOIN (SELECT * from encounters_cache x where x.cluster_idx = ?) ec ON ec.tinder_id = m.person_id " 
+"WHERE m.person_id not in (select person_id from marks where client_tinder_id = ?) " 
+"GROUP BY ec.tinder_id "
+"ORDER BY sum(vote) DESC " 
+"LIMIT ?, ?";
 
 // 1 -- target_id
 const std::string Q_GET_PHOTOS_URLS =
