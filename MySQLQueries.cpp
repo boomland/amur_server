@@ -67,6 +67,23 @@ const std::string Q_CLUST_STATS =
 "GROUP BY ec.cluster_idx "
 "ORDER BY ec.cluster_idx ";
 
+const std::string Q_RAND_CLUST_WITH_LIKE = 
+"SELECT cluster_idx "
+"FROM encounters_cache ec "
+"JOIN marks m ON m.person_id = ec.tinder_id "
+"WHERE m.vote = 1 "
+"GROUP BY cluster_idx " 
+"ORDER BY rand() "
+"limit 0, 1 ";
+
+const std::string Q_COND_CLUST_SIZE =
+"SELECT cluster_idx, count(*) as cnt "
+"FROM encounters_cache "
+"WHERE cluster_idx is not null "
+"and gender = ? "
+"and calculated_age between ? and ? "
+"GROUP BY cluster_idx "
+"order by cluster_idx ";
 
 // 1    -- target_id
 // 2    -- gender to find

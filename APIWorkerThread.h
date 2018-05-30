@@ -48,13 +48,15 @@ public:
 	void makeDecision(int cluster_idx, std::map<int, std::pair<int, int>>& stat_map, float & prob, std::string & decision);
 	
 	// yaroslav+
-	std::map<int, std::pair<int, int>>::iterator getBadknownCluster(std::map<int, std::pair<int, int>>& stat_map);
+	int getConditionClusterSize(AuthorizedClient* client, int cluster_idx);
+	std::map<int, std::pair<int, int>>::iterator getBadknownCluster(AuthorizedClient* client, std::map<int, std::pair<int, int>>& stat_map);
 	void pushSequencePerson(json& out, sql::ResultSet *res_sql, float& prob);
-	void pushDataRandomPerson(json& out, AuthorizedClient* client, int cluster_idx, float& prob, int number_of_people);
-	void pushDataPopularPerson(json& out, AuthorizedClient* client, int cluster_idx, float& prob, int start_num, int number_of_people);
+	int pushDataRandomPerson(json& out, AuthorizedClient* client, int cluster_idx, float& prob, int number_of_people);
+	int pushDataPopularPerson(json& out, AuthorizedClient* client, int cluster_idx, float& prob, int start_num, int number_of_people);
 	void getRandomPerson(json& out, AuthorizedClient* client, int number_of_people);
 	void getPopularPerson(json& out, AuthorizedClient* client, int start_num, int number_of_people);
 	int getNumberRecommendationFuction();
+	int getNumberRandomClusterWithLike();
 
 	std::string performRecommendation(const json & data);
 
@@ -94,6 +96,8 @@ private:
 	int BATCH_SIZE;
 	int NUM_CLUST;
 	int BAD_CLUSTER_TRESH;
+	int NUM_ESTIMATED;
+	int MAX_POPULAR_ITER;
 	float RAND_PROB;
 	float POPULAR_PROB;
 	float NEAR_PROB;
