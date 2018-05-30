@@ -274,13 +274,15 @@ void APIWorkerThread::getRandomPerson(json& out, AuthorizedClient* client, int n
 void APIWorkerThread::getPopularPerson(json& out, AuthorizedClient* client, int start_num = 0, int number_of_people = 1) {
     // пока не заморачиваемся. Рандомим кластер. Смотрим, получаем ли из него человечка. Иначе генерим другой кластер и берем оттуда
     // Конечно, пока что в такой реализации, если есть кластер в котором один человек и он не понравился, то мы всегда будем предлагать его
-    // в след коммите пофиксю. И проверить, а вдруг нет оценок в таблице вообще, тогда все ай-яй плохо
+    // в след коммите пофиксю. И проверить, а вдруг нет оценок в таблице вообще, тогда все ай-яй плохоt
+    // не всегда набирает столько людей сколько нужно
     float probability_popular = 0.0f;
     int cur_pushed = 0;
     int cur_iter = 0;
     while ((cur_pushed < number_of_people) && (cur_iter < MAX_POPULAR_ITER)) {
         int cur_cluster_idx =  getNumberRandomClusterWithLike();
         if (cur_cluster_idx == -1) {
+            server_->logger.log(et_error, "Cannot get more popular person!");
             return;
         }
         int cur_recieved = pushDataPopularPerson(out, client, cur_cluster_idx, probability_popular, start_num, number_of_people - cur_pushed);

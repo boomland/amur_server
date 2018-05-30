@@ -85,6 +85,20 @@ const std::string Q_COND_CLUST_SIZE =
 "GROUP BY cluster_idx "
 "order by cluster_idx ";
 
+const std::string Q_TOP_CLUST = 
+"SELECT * "
+"FROM "
+"    (SELECT ec.*, sum(vote) as rating "
+"    FROM marks m "
+"    JOIN (SELECT * from encounters_cache x where x.cluster_idx = ?) ec ON ec.tinder_id = m.person_id "
+"    WHERE ec.gender = ? "
+"          and ec.calculated_age BETWEEN ? and ? "
+"    GROUP BY ec.tinder_id "
+"    ORDER BY sum(vote) DESC "
+"   LIMIT ?) xx "
+"WHERE xx.tinder_id not in (select person_id from marks where client_tinder_id = ?) "
+"ORDER BY rand() "
+
 // 1    -- target_id
 // 2    -- gender to find
 // 3, 4 -- min/max age
