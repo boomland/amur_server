@@ -20,21 +20,21 @@
 APIWorkerThread::APIWorkerThread(size_t idx, MainServer *server, TaskQueue<Task<std::string, std::string>*> *wqueue)
 	 : WorkerThread(idx, server, wqueue)
 {
-	FIRST_EPOCH_TRESH = server->config_file_.getSection("recommendation").getProperty<int>("first_tresh", 4);
+	BAD_CLUSTER_TRESH = server->config_file_.getSection("recommendation").getProperty<int>("first_tresh", 4);
 	BATCH_SIZE = server->config_file_.getSection("recommendation").getProperty<int>("batch_size", 20);
 	NUM_CLUST = server->config_file_.getSection("recommendation").getProperty<int>("n_clusters", 100);
-	SECOND_EPOCH_RAND_PROB = server->config_file_.getSection("recommendation").getProperty<float>("rand_prob", 0.3);
-	SECOND_EPOCH_POPULAR_PROB = server->config_file_.getSection("recommendation").getProperty<float>("popular_prob", 0.5);
-	SECOND_EPOCH_NEAR_PROB = server->config_file_.getSection("recommendation").getProperty<float>("neigh_prob", 0.2);
+	RAND_PROB = server->config_file_.getSection("recommendation").getProperty<float>("rand_prob", 0.3);
+	POPULAR_PROB = server->config_file_.getSection("recommendation").getProperty<float>("popular_prob", 0.5);
+	NEAR_PROB = server->config_file_.getSection("recommendation").getProperty<float>("neigh_prob", 0.2);
 }
 
 APIWorkerThread::APIWorkerThread(APIWorkerThread&& r) : WorkerThread(std::forward<WorkerThread>(r)) {
-	FIRST_EPOCH_TRESH = r.FIRST_EPOCH_TRESH;
+	BAD_CLUSTER_TRESH = r.BAD_CLUSTER_TRESH;
 	BATCH_SIZE = r.BATCH_SIZE;
 	NUM_CLUST = r.NUM_CLUST;
-	SECOND_EPOCH_RAND_PROB = r.SECOND_EPOCH_RAND_PROB;
-	SECOND_EPOCH_POPULAR_PROB = r.SECOND_EPOCH_POPULAR_PROB;
-	SECOND_EPOCH_NEAR_PROB = r.SECOND_EPOCH_NEAR_PROB;
+	RAND_PROB = r.RAND_PROB;
+	POPULAR_PROB = r.POPULAR_PROB;
+	NEAR_PROB = r.NEAR_PROB;
 }
 
 std::string APIWorkerThread::performJob(Task<std::string, std::string> *job) {
@@ -150,40 +150,25 @@ void APIWorkerThread::makeDecision(
 }
 
 
-
 std::map<int, std::pair<int, int>>::iterator APIWorkerThread::getBadknownCluster(std::map<int, std::pair<int, int>>& stat_map) {
 	for (auto it = stat_map.begin(); it != stat_map.end(); ++it) {
-		// [num_cluster]->{positive, overall};
 		int cur_cluster_idx = it->first;
 		int cur_overall = it->second.second;
-		// если мы нашли кластер в котором оценили меньше FIRST_EPOCH_TRESH
-		// человек, тогда предложим человека из этого кластера
-		if (cur_overall <= FIRST_EPOCH_TRESH) {
+		if (cur_overall <= BAD_CLUSTER_TRESH) {
 			return it;
 		}
 	}
 	return stat_map.end();
 }
 
-void APIWorkerThread::pushDataRandomPerson(json& out, AuthorizedClient* client, int cluster_idx, float& prob, int number_of_people = 1) {
-	std::cout << "\t I am in pushDataRandomPerson!\n";
-	sql::PreparedStatement *pst = server_->mysql_con->prepareStatement(Q_FILTER_v3.c_str());
-	pst->setString(1, (client->getID()).c_str());
-	pst->setInt(2, (std::atoi(client->getData()["gender"].c_str()) + 1) % 2);
-	pst->setInt(3, std::atoi(client->getData()["age_min"].c_str()));
-	pst->setInt(4, std::atoi(client->getData()["age_max"].c_str()));
-	pst->setString(5, client->getData()["city_name"].c_str());
-	pst->setInt(6, cluster_idx); // выбираем откуда хотим получить
-	pst->setInt(7, number_of_people); // хотим получить пока что одного юзера
-	sql::ResultSet *res = pst->executeQuery();
-	server_->logger.log(et_notice, "Num rows in Q_FILTER_v3: " + std::to_string(res->rowsCount()));
-	while (res->next()) {
-		std::string tinder_id = res->getString("tinder_id").c_str();
-		std::string name = res->getString("name").c_str();
-		int gender = res->getInt("gender");
-		std::string birth_date = res->getString("birth_date").c_str();
+void APIWorkerThread::pushSequencePerson(json& out, sql::ResultSet *res_sql, float& prob) {
+	while (res_sql->next()) {
+		std::string tinder_id = res_sql->getString("tinder_id").c_str();
+		std::string name = res_sql->getString("name").c_str();
+		int gender = res_sql->getInt("gender");
+		std::string birth_date = res_sql->getString("birth_date").c_str();
 		int distance = 999;
-		int cluster_idx = res->getInt("cluster_idx");
+		int cluster_idx = res_sql->getInt("cluster_idx");
 		std::string bio = "AS the best man in computer vision!";//"Bio information will appear in future versions! Sorry :(";
 
 		std::string decision = "NO_DECISION";
@@ -216,12 +201,22 @@ void APIWorkerThread::pushDataRandomPerson(json& out, AuthorizedClient* client, 
 	}
 }
 
-#include <iostream>
+void APIWorkerThread::pushDataRandomPerson(json& out, AuthorizedClient* client, int cluster_idx, float& prob, int number_of_people = 1) {
+	sql::PreparedStatement *pst = server_->mysql_con->prepareStatement(Q_FILTER_v3.c_str());
+	pst->setString(1, (client->getID()).c_str());
+	pst->setInt(2, (std::atoi(client->getData()["gender"].c_str()) + 1) % 2);
+	pst->setInt(3, std::atoi(client->getData()["age_min"].c_str()));
+	pst->setInt(4, std::atoi(client->getData()["age_max"].c_str()));
+	pst->setString(5, client->getData()["city_name"].c_str());
+	pst->setInt(6, cluster_idx);
+	pst->setInt(7, number_of_people);
+	sql::ResultSet *res = pst->executeQuery();
+	server_->logger.log(et_notice, "Num rows in Q_FILTER_v3: " + std::to_string(res->rowsCount()));
+	pushSequencePerson(out, res, prob);
+}
+
 
 void APIWorkerThread::pushDataPopularPerson(json& out, AuthorizedClient* client, int cluster_idx, float& prob, int start_num = 0, int number_of_people = 1) {
-	// вставить в cpp запросник
-	std::cout << "\t I am in pushDataPopularPerson! ";
-	std::cout << cluster_idx << " " <<  start_num << " " << number_of_people << '\n';
 	sql::PreparedStatement *pst = server_->mysql_con->prepareStatement(Q_FILTER_v4.c_str());
 	pst->setInt(1, cluster_idx);
 	pst->setString(2, client->getID().c_str());
@@ -229,43 +224,7 @@ void APIWorkerThread::pushDataPopularPerson(json& out, AuthorizedClient* client,
 	pst->setInt(4, number_of_people);
 	sql::ResultSet *res = pst->executeQuery();
 	server_->logger.log(et_notice, "Num rows in Q_FILTER_v4: " + std::to_string(res->rowsCount()));
-	while (res->next()) {
-		std::string tinder_id = res->getString("tinder_id").c_str();
-		std::string name = res->getString("name").c_str();
-		int gender = res->getInt("gender");
-		std::string birth_date = res->getString("birth_date").c_str();
-		int distance = 999;
-		int cluster_idx = res->getInt("cluster_idx");
-		std::string bio = "AS the best man in computer vision!";//"Bio information will appear in future versions! Sorry :(";
-
-		std::string decision = "NO_DECISION";
-		prob = 99.99;
-
-		sql::PreparedStatement *pst_photos = server_->mysql_con->prepareStatement(Q_GET_PHOTOS_URLS.c_str());
-		pst_photos->setString(1, tinder_id.c_str());
-		sql::ResultSet *res_photos = pst_photos->executeQuery();
-		json cur = {
-			{ "id", tinder_id },
-			{ "name", name },
-			{ "gender", gender },
-			{ "birthday", birth_date },
-			{ "distance", distance },
-			{ "bio", bio },
-			{ "prob", prob},
-			{ "decision", decision },
-			{ "cluster", cluster_idx }
-		};
-		while (res_photos->next()) {
-			cur["photos"].push_back({
-				{ "url", res_photos->getString("url").c_str() },
-				{ "type", "tinder" }
-			});
-		}
-		//server_->logger.log(et_notice, "Cur dump: " + cur.dump());
-		out.push_back(cur);
-		delete pst_photos;
-		delete res_photos;
-	}
+	pushSequencePerson(out, res, prob);
 }
 
 // void APIWorkerThread::pushDataNeighborPerson(json& out, Authorized* client, );
@@ -289,26 +248,22 @@ void APIWorkerThread::getRandomPerson(json& out, AuthorizedClient* client, int n
 }
 
 void APIWorkerThread::getPopularPerson(json& out, AuthorizedClient* client, int start_num = 0, int number_of_people = 1) {
-	std::default_random_engine generator;
  	std::uniform_int_distribution<int> distribution(0, NUM_CLUST);
+ 	int cur_cluster_idx = distribution(random_generator);
 
- 	int cur_cluster_idx = distribution(generator);
  	float probability_popular = 0.0f;
  	pushDataPopularPerson(out, client, cur_cluster_idx, probability_popular, start_num, number_of_people);
  	return;
 }
 
 // void APIWorkerThread::getNeighborsPerson(json& out, AuthorizedClient* client, int start_num = 0, int number_of_people){};
+
 int APIWorkerThread::getNumberRecommendationFuction() {
-	std::random_device r;
-	std::default_random_engine generator{r()};
  	std::uniform_real_distribution<float> distribution(0.0, 1.0);
-
- 	float rand_value = distribution(generator);
-
- 	if (rand_value <= SECOND_EPOCH_RAND_PROB) {
+ 	float rand_value = distribution(random_generator);
+ 	if (rand_value <= RAND_PROB) {
  		return 0;
- 	} else if (rand_value <= SECOND_EPOCH_RAND_PROB + SECOND_EPOCH_POPULAR_PROB) {
+ 	} else if (rand_value <= RAND_PROB + POPULAR_PROB) {
  		return 1;
  	} else {
  		return 2;
@@ -335,20 +290,20 @@ std::string APIWorkerThread::performRecommendation(const json& data) {
 		int number_of_people = 1;
 		int start_num = 0; // for "1-popular" method
 		while (out.size() < BATCH_SIZE) {
-			std::cout << "Size: " << out.size() << '\n';
+			server_->logger.log(et_notice, "Current batch size = " + std::to_string(out.size()));
 			int number_func = getNumberRecommendationFuction();
 			if (number_func == 0) { // 0 -random
-				cout << "153_RANDOM\n";
+				server_->logger.log(et_notice, "Run getRandomPerson()");
 				getRandomPerson(out, client, number_of_people);
 			} else if (number_func == 1) { // 1 - popular
-				cout << "153_POPULAR\n";
+				server_->logger.log(et_notice, "Run getPopularPerson()");
 				getPopularPerson(out, client, start_num, number_of_people);
 			} else { // 2 - neighbors
-				cout << "153_NEIGH\n";
+				server_->logger.log(et_notice, "Run getNeighborsPerson()");
 				// getNeighborsPerson(out, ....)
 			}
 		}
-		std::cout << "I have 20 people!\n";
+		server_->logger.log(et_notice, "I have in batch" + std::to_string(BATCH_SIZE) + " people.");
 		return ok_response(out);
 		try {
 
@@ -362,14 +317,6 @@ std::string APIWorkerThread::performRecommendation(const json& data) {
 		return error_response(RE_NO_AUTH);
 	}
 }
-
-
-// std::string APIWorkerThread::getRandomPerson(const json& data) {
-// 	string id = data.at("tinder_id"); // получаем id текущего юзера
-
-// }
-
-// Моя, новая версия
 
 
 std::string APIWorkerThread::performGetEncounters(const json& data) {

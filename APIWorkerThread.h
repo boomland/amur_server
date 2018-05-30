@@ -1,5 +1,9 @@
 #pragma once
 #include <map>
+#include <random>
+
+#include <cppconn/statement.h>
+#include <cppconn/prepared_statement.h>
 
 #include "WorkerThread.h"
 #include "Task.h"
@@ -45,6 +49,7 @@ public:
 	
 	// yaroslav+
 	std::map<int, std::pair<int, int>>::iterator getBadknownCluster(std::map<int, std::pair<int, int>>& stat_map);
+	void pushSequencePerson(json& out, sql::ResultSet *res_sql, float& prob);
 	void pushDataRandomPerson(json& out, AuthorizedClient* client, int cluster_idx, float& prob, int number_of_people);
 	void pushDataPopularPerson(json& out, AuthorizedClient* client, int cluster_idx, float& prob, int start_num, int number_of_people);
 	void getRandomPerson(json& out, AuthorizedClient* client, int number_of_people);
@@ -88,9 +93,10 @@ public:
 private:
 	int BATCH_SIZE;
 	int NUM_CLUST;
-	int FIRST_EPOCH_TRESH;
-	float SECOND_EPOCH_RAND_PROB;
-	float SECOND_EPOCH_POPULAR_PROB;
-	float SECOND_EPOCH_NEAR_PROB;
+	int BAD_CLUSTER_TRESH;
+	float RAND_PROB;
+	float POPULAR_PROB;
+	float NEAR_PROB;
+	std::default_random_engine random_generator;
 };
 
